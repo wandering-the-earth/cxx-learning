@@ -1,5 +1,5 @@
 ﻿#include "../exercise.h"
-
+#include <cstring>
 // READ: 类模板 <https://zh.cppreference.com/w/cpp/language/class_template>
 
 template<class T>
@@ -10,8 +10,12 @@ struct Tensor4D {
     Tensor4D(unsigned int const shape_[4], T const *data_) {
         unsigned int size = 1;
         // TODO: 填入正确的 shape 并计算 size
+        for (unsigned int i = 0; i < 4; ++i) {
+            shape[i] = shape_[i];
+            size *= shape[i]; // 计算张量的总大小
+        }
         data = new T[size];
-        std::memcpy(data, data_, size * sizeof(T));
+        memcpy(data, data_, size * sizeof(T));
     }
     ~Tensor4D() {
         delete[] data;
@@ -28,6 +32,52 @@ struct Tensor4D {
     // 则 `this` 与 `others` 相加时，3 个形状为 `[1, 2, 1, 4]` 的子张量各自与 `others` 对应项相加。
     Tensor4D &operator+=(Tensor4D const &others) {
         // TODO: 实现单向广播的加法
+         // 对数据进行加法操作，遵循广播规则
+        unsigned int size = 1;
+        for (int i = 0; i < 4; ++i) {
+            size *= shape[i];  // 计算张量的总大小
+        }
+
+        for (unsigned int i = 0; i < size; ++i) {
+            // 计算当前索引的多维坐标
+            unsigned int idx[4] = {0, 0, 0, 0};
+            unsigned int temp = i;
+            for (int j = 3; j >= 0; --j) {
+                idx[j] = temp % shape[j];
+                temp /= shape[j];
+            }
+
+            // 根据广播规则，决定如何进行加法
+            bool can_broadcast = true;
+            for (int j = 0; j < 4; ++j) {
+                if (shape[j] == 1 && others.shape[j] != 1) {
+                    idx[j] = 0;  // 广播时选择 `others` 张量的第一元素
+                } else if (others.shape[j] == 1 && shape[j] != 1) {
+                    can_broadcast = false;  // 当 `others` 形状是 1 时，直接进行广播
+                }
+            }
+
+            // 执行加法
+            if (can_broadcast) {
+                data[i] += others.data[i];
+            } else {
+                unsigned int idx_others[4] = {0, 0, 0, 0};
+                for (int j = 0; j < 4; ++j) {
+                    if (others.shape[j] == 1) {
+                        idx_others[j] = 0;  // 广播时选择 `others` 张量的第一元素
+                    } else {
+                        idx_others[j] = idx[j];
+                    }
+                }
+                unsigned int index_others = 0;
+                unsigned int stride_others = 1;
+                for (int j = 3; j >= 0; --j) {
+                    index_others += idx_others[j] * stride_others;
+                    stride_others *= others.shape[j];
+                }
+                data[i] += others.data[index_others];
+            }
+        }
         return *this;
     }
 };
